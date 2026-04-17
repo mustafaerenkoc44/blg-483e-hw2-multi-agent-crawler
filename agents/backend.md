@@ -37,6 +37,11 @@ Keep the implementation consistent with the assignment boundaries and document a
 - Return explicit data shapes so the frontend can render results consistently.
 - Do not widen the crawl scope without approval.
 
+## Human Oversight
+- Escalate scope changes instead of silently adding capabilities.
+- Escalate any backend tradeoff that weakens deduplication, resume, or grading clarity.
+- Leave final acceptance of correctness to the human integrator and reviewer loop.
+
 ## Definition Of Done
 - The crawler behavior matches the stated scope.
 - Known failure modes are handled deterministically.

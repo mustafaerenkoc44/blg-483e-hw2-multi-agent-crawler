@@ -437,6 +437,8 @@ class CrawlerManager:
 
     def search(self, query: str, limit: int = 25) -> dict[str, Any]:
         # Query-time tokenization intentionally mirrors index-time tokenization.
+        if limit < 0:
+            raise ValueError("limit must be >= 0")
         terms = tokenize(query)
         results = self.storage.search(terms, limit)
         return {

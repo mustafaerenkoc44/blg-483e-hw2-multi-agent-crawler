@@ -16,6 +16,10 @@ The project uses five conceptual agents:
 
 Each agent has a dedicated description file under [`agents/`](agents/).
 
+## Why exactly five agents
+
+Five agents were enough to separate the assignment's distinct responsibilities without creating artificial coordination overhead. Fewer than five would have merged review and documentation back into implementation roles, which weakens the evidence for deliberate multi-agent management. More than five would have split a relatively small localhost project into roles too narrow to justify their own prompts, handoffs, and outputs.
+
 ## Why this split was chosen
 
 The assignment is not only about building the crawler. It also asks the student to define agents, assign responsibilities, decide communication patterns, and evaluate outputs. The chosen split maps directly onto the natural seams in the project:
@@ -109,6 +113,28 @@ Communication rules:
 - the reviewer writes actionable findings, not generic comments
 - the documentation agent must not invent behavior that the code does not implement
 
+## Example handoff and resolution
+
+### Architect to backend handoff
+
+Architect output excerpt:
+
+> Reuse the proven HW1 single-machine crawler core, but remove HW1-only quiz adapters and flat-file export paths from the runtime. Keep the bounded queue, rate limiter, and SQLite WAL storage. Preserve live search during indexing. Any user-facing API should stay small and return assignment-native shapes only.
+
+Backend implementation response:
+
+> The HW2 runtime kept `CrawlerManager`, `JobRunner`, SQLite frontier storage, and the dashboard server. HW1 quiz/export behavior was removed from the request handler and from the persisted output contract. Search remains queryable while workers are committing pages because the runtime still writes each page independently into SQLite.
+
+### Reviewer finding and resolution
+
+Reviewer finding excerpt:
+
+> `GET /api/search` converts `limit` with `int(...)` and does not catch invalid input. `limit=abc` can crash the handler instead of returning a bounded client error.
+
+Resolution:
+
+> Added explicit `limit` validation in the HTTP handler, rejected invalid values with `400 Bad Request`, and added an HTTP integration test that verifies the failure mode.
+
 ## Prompting Strategy
 
 Each agent is given a constrained prompt tailored to one responsibility domain:
@@ -120,6 +146,16 @@ Each agent is given a constrained prompt tailored to one responsibility domain:
 - the documentation prompt emphasizes faithfulness to the implemented repository
 
 The prompt templates are recorded in the individual agent files.
+
+## Agent evaluation criteria
+
+| Agent | Evaluation signal | How it was measured |
+|-------|-------------------|---------------------|
+| `architect` | Scope matched the final repository | Compared the plan against the final file set and excluded HW1-only runtime features |
+| `backend` | Runtime correctness without scope creep | `unittest` passing, live search still working, no quiz/export behavior left in HW2 |
+| `frontend` | Dashboard matched the backend contract | Manual walkthrough of crawl creation, status polling, resume, and search rendering |
+| `reviewer` | Findings were concrete and useful | Issues were checked against the codebase, then either fixed or explicitly downgraded |
+| `documentation` | Documents matched implemented behavior | README/API steps and workflow claims were re-checked against source files and tests |
 
 ## Human Decision Points
 

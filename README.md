@@ -37,9 +37,28 @@ flowchart LR
     SEARCH --> UI
 ```
 
+### Multi-agent workflow at a glance
+
+```mermaid
+flowchart LR
+    A["Architect"] --> B["Backend"]
+    A --> C["Frontend"]
+    B --> D["Reviewer"]
+    C --> D
+    D --> E["Documentation"]
+    E --> H["Human Integrator"]
+    D --> H
+```
+
 ### Why search works during indexing
 
 Workers commit each fetched page independently into SQLite. Because the database uses WAL mode, search requests can read fresh rows while new pages are still being inserted. This avoids end-of-job batch indexing and makes partial crawl results visible immediately.
+
+### If search had to start independently while indexing was still booting
+
+The current system already supports concurrent reads and writes after a crawl job exists. To make `search` safe even when indexing is just starting, the next production-oriented step would be to formalize visibility around committed page writes only. That means treating page ingestion as the source of truth, never reading from in-memory queues, and accepting that search is eventually consistent over the persisted store. In practice, the query path would continue reading from SQLite or a search index while indexers append newly committed pages asynchronously.
+
+For a larger version of the same design, the crawler would keep frontier scheduling and fetch execution separate from the query path. Search would never block on crawl completion; it would simply return whatever postings have already been committed. A small freshness watermark or per-job "indexed through" timestamp would make that behavior explicit in the UI and API.
 
 ### Why this scales on one machine
 
@@ -87,6 +106,8 @@ python -m http.server 9001 -d sample_site
 python main.py --host 127.0.0.1 --port 3700 --auto-resume
 ```
 
+By default the crawler persists state under `hw2/data/`. If you stop the process and restart it with the same `--data-dir`, resumable jobs and indexed pages remain available.
+
 3. Open the dashboard:
 
 ```text
@@ -109,6 +130,13 @@ Queue Limit: 64
 python
 crawler
 concurrency
+```
+
+6. Optional CLI verification:
+
+```bash
+curl "http://127.0.0.1:3700/api/status"
+curl "http://127.0.0.1:3700/api/search?q=python&limit=10"
 ```
 
 ## HTTP API
@@ -134,6 +162,8 @@ Content-Type: application/json
 GET /api/search?q=python&limit=20
 ```
 
+The handler also accepts `query` as an alias for `q`. Invalid numeric input such as `limit=abc` returns `400 Bad Request`.
+
 ### Observe state
 
 ```http
@@ -142,6 +172,50 @@ GET /api/jobs
 GET /api/jobs/{job_id}
 POST /api/jobs/{job_id}/resume
 ```
+
+## Grader-Friendly Verification Flows
+
+### How to observe back pressure
+
+1. Start the sample site and the dashboard.
+2. Create a crawl job with:
+
+```text
+Origin URL: http://127.0.0.1:9001/index.html
+Max Depth: 2
+Workers: 1
+Rate Limit: 20
+Queue Limit: 1
+```
+
+3. Open the selected job card in the dashboard.
+4. Watch `Queue Pressure` and `backpressure_events`.
+
+Expected behavior:
+
+- `in_memory_queue_depth` reaches the configured queue limit
+- `backpressure_events` increases while the dispatcher waits for worker capacity
+- the job still completes because excess frontier items remain durable in SQLite instead of being dropped
+
+### How to verify resume
+
+1. Start a crawl job from the sample site.
+2. Stop the crawler process before the job finishes.
+3. Restart the server with the same data directory and `--auto-resume`.
+4. Open the dashboard or `GET /api/jobs/{job_id}` again.
+
+Expected behavior:
+
+- unfinished work is marked `resumable` on shutdown/boot
+- restarting with `--auto-resume` continues from the persisted frontier
+- already indexed pages are reused instead of being recrawled from scratch
+
+## Data and persistence
+
+- The default persistence directory is `hw2/data/`.
+- SQLite files are created automatically on first run.
+- Resume works only if the same data directory is reused across process restarts.
+- Search reads directly from the persisted database, not from transient in-memory worker state.
 
 ## Testing
 
@@ -156,9 +230,14 @@ The test suite verifies:
 - crawl completion and indexed search results
 - search visibility while indexing is still active
 - resume behavior after interruption
+- `max_depth = 0` behavior
+- observable back pressure with a bounded queue
+- invalid search-limit handling
+- URL normalization edge cases used by deduplication
 
-## Notes on HW2 Interpretation
+## Scope notes
 
 - The runtime system is not a multi-agent runtime; the multi-agent requirement applies to the development workflow.
 - The repository therefore includes explicit agent definitions, interaction rules, and a workflow document that describes how AI agents collaborate and how final decisions are made.
 - The implementation still prioritizes native language features over external crawler frameworks, as required by the assignment.
+- `robots.txt` support is intentionally left out of the runtime because the homework focuses on crawler architecture, deduplication, back pressure, and live search on localhost. The production recommendation explains how politeness controls would be added later.

@@ -39,6 +39,11 @@ Keep the documents accurate to the current repository and avoid inventing featur
 - Escalate any mismatch between documentation and implementation instead of smoothing it over.
 - Keep documents concise, technical, and submission oriented.
 
+## Human Oversight
+- Escalate any mismatch between repository behavior and written deliverables.
+- Escalate any missing evidence for agent collaboration instead of inventing examples.
+- Leave the final submission decision to the human integrator.
+
 ## Definition Of Done
 - All required deliverables are present.
 - The documents match the code and workflow actually used.

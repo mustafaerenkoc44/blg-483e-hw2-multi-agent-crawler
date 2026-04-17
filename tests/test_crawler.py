@@ -11,6 +11,7 @@ import unittest
 import uuid
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import urlopen
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -170,6 +171,25 @@ class CrawlerIntegrationTests(unittest.TestCase):
         )
         self.assertTrue(saw_live_result, "search never surfaced partial crawl results")
 
+    def test_max_depth_zero_only_indexes_the_origin(self):
+        origin = self._make_site()
+        data_dir = self._tempdir()
+        manager = self._manager(data_dir)
+        job = manager.start_job(origin, 0, worker_count=1, rate_limit=20, queue_limit=4)
+        job_id = job["job_id"]
+
+        finished = wait_until(
+            lambda: manager.get_job_status(job_id)["status"] == "completed",
+            timeout=8,
+        )
+        self.assertTrue(finished, "depth-zero crawl did not complete in time")
+
+        root_results = manager.search("rootterm", limit=10)["results"]
+        self.assertTrue(any(row["relevant_url"] == origin and row["depth"] == 0 for row in root_results))
+
+        child_results = manager.search("python", limit=10)["results"]
+        self.assertEqual(child_results, [])
+
     def test_jobs_are_resumable_after_interruption(self):
         origin = self._make_site(slow_seconds=3.0)
         data_dir = self._tempdir()
@@ -192,6 +212,19 @@ class CrawlerIntegrationTests(unittest.TestCase):
 
         resumed_results = resumed_manager.search("delayedtoken", limit=10)["results"]
         self.assertTrue(any(row["relevant_url"].endswith("/slow.html") for row in resumed_results))
+
+    def test_backpressure_counter_increases_when_queue_is_full(self):
+        origin = self._make_site(slow_seconds=1.5)
+        data_dir = self._tempdir()
+        manager = self._manager(data_dir)
+        job = manager.start_job(origin, 2, worker_count=1, rate_limit=20, queue_limit=1)
+        job_id = job["job_id"]
+
+        saw_backpressure = wait_until(
+            lambda: manager.get_job_status(job_id)["runtime"]["backpressure_events"] > 0,
+            timeout=8,
+        )
+        self.assertTrue(saw_backpressure, "backpressure counter never increased under a full queue")
 
     def test_http_api_exposes_dashboard_and_search(self):
         origin = self._make_site()
@@ -230,6 +263,20 @@ class CrawlerIntegrationTests(unittest.TestCase):
         with urlopen(base_url, timeout=5) as response:
             html = response.read().decode("utf-8")
         self.assertIn("BLG 483E / HW2", html)
+
+    def test_http_api_rejects_invalid_search_limit(self):
+        data_dir = self._tempdir()
+        manager = self._manager(data_dir)
+        api_server = self._api_server(manager)
+        base_url = f"http://127.0.0.1:{api_server.server_port}"
+
+        with self.assertRaises(HTTPError) as context:
+            urlopen(f"{base_url}/api/search?q=python&limit=abc", timeout=5)
+
+        response = context.exception
+        self.assertEqual(response.code, 400)
+        payload = json.loads(response.read().decode("utf-8"))
+        self.assertIn("error", payload)
 
 if __name__ == "__main__":
     unittest.main()

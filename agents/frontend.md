@@ -35,6 +35,11 @@ Do not add features that are not supported by the assignment or the backend cont
 - Keep terminology consistent with the architect's assignment framing.
 - If a UI choice affects grading risk or behavior interpretation, escalate it for human review.
 
+## Human Oversight
+- Escalate any UI decision that changes how backend behavior is interpreted.
+- Escalate missing backend fields instead of inventing client-only state.
+- Treat the human integrator as the final owner of grading-facing presentation choices.
+
 ## Definition Of Done
 - Crawl state is readable.
 - Results are understandable.

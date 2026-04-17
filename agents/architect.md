@@ -40,6 +40,11 @@ Keep the plan specific to this repository and avoid inventing requirements.
 - Send frontend work only the data shapes and states needed for presentation.
 - Escalate ambiguous assignment language instead of resolving it silently.
 
+## Human Oversight
+- Escalate any requirement ambiguity before it hardens into code.
+- Escalate any proposed scope change that would affect grading or deliverables.
+- Treat the human integrator as the final authority on architecture tradeoffs.
+
 ## Definition Of Done
 - The crawl scope is clearly stated.
 - The implementation split is unambiguous.

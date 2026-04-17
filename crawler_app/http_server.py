@@ -64,8 +64,14 @@ class CrawlerRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/search":
             params = parse_qs(parsed.query)
-            query = params.get("q", [""])[0]
-            limit = int(params.get("limit", ["25"])[0])
+            query = params.get("q", params.get("query", [""]))[0]
+            try:
+                limit = int(params.get("limit", ["25"])[0])
+                if limit < 0:
+                    raise ValueError("limit must be >= 0")
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                return
             self._send_json(self.server.manager.search(query, limit=limit))
             return
 

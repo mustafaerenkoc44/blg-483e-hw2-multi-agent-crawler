@@ -580,7 +580,7 @@ class Storage:
                     SET discovered_depth = ?, discovered_at = ?
                     WHERE page_id = ? AND job_id = ?
                     """,
-                        (depth, now, page_id, job_id),
+                    (depth, now, page_id, job_id),
                 )
             conn.commit()
 

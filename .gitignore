@@ -2,8 +2,10 @@ __pycache__/
 *.pyc
 *.pyo
 tests/.tmp/
+tmp*/
 
 data/
+data_*/
 *.db
 *.db-shm
 *.db-wal

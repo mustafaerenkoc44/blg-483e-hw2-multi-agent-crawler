@@ -61,14 +61,17 @@ def normalize_url(raw_url: str, base_url: str | None = None) -> str | None:
         netloc = hostname
 
     path = parts.path or "/"
-    # normpath removes duplicate separators and collapses "." / ".." segments.
-    normalized_path = normpath(path)
+    had_trailing_slash = path.endswith("/")
+    # posixpath.normpath preserves a leading double slash, which is useful for
+    # filesystem semantics but undesirable for crawl deduplication. Prefixing a
+    # sentinel slash first collapses duplicate separators consistently.
+    normalized_path = normpath(f"/{path.lstrip('/')}")
+    if normalized_path == ".":
+        normalized_path = "/"
     if not normalized_path.startswith("/"):
         normalized_path = f"/{normalized_path}"
-    if path.endswith("/") and not normalized_path.endswith("/"):
+    if had_trailing_slash and normalized_path != "/" and not normalized_path.endswith("/"):
         normalized_path = f"{normalized_path}/"
-    if normalized_path == "//":
-        normalized_path = "/"
 
     return urlunsplit(
         (
